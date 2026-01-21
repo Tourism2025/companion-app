@@ -331,12 +331,11 @@
                 'Authorization': `Bearer ${ROUTELLM_API_KEY}` 
             },
             body: JSON.stringify({
-                model: 'gpt-4o-mini',  // ✅ FIXED: Removed "openai/" prefix
+                model: 'gpt-4o', // ✅ Try this exact model name
                 messages: [{ role: 'system', content: AI_PROMPT }, ...history],
                 temperature: 0.7,
                 max_tokens: 500
             })
-        });
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -361,4 +360,5 @@
     </script>
 </body>
 </html>
+
 
