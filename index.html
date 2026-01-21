@@ -34,14 +34,16 @@
         .message.maksim .message-content { background: #4caf50; color: white; border-bottom-right-radius: 8px; }
         .message-label { font-size: 22px; margin-bottom: 10px; font-weight: bold; }
         .message-image { max-width: 100%; border-radius: 15px; margin-top: 15px; display: block; }
+        .message-video { max-width: 100%; border-radius: 15px; margin-top: 15px; display: block; }
         .chat-input-area { padding: 25px; background: white; border-top: 3px solid #e0e0e0; }
         .input-wrapper { display: flex; gap: 15px; align-items: center; }
         #messageInput { flex: 1; padding: 25px; border: 3px solid #e0e0e0; border-radius: 20px; font-size: 26px; outline: none; }
-        #sendBtn, #imageBtn { padding: 25px 40px; background: #667eea; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 26px; }
-        #imageBtn { padding: 25px 35px; font-size: 32px; }
+        #sendBtn, #imageBtn, #videoBtn { padding: 25px 40px; background: #667eea; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 26px; }
+        #imageBtn, #videoBtn { padding: 25px 35px; font-size: 32px; }
         .typing-indicator { display: none; color: #667eea; font-style: italic; margin-bottom: 15px; font-size: 24px; }
-        #imageInput { display: none; }
+        #imageInput, #videoInput { display: none; }
         .error-message { color: #f44336; font-size: 24px; margin-top: 20px; display: none; }
+        .upload-progress { color: #667eea; font-size: 22px; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
@@ -63,9 +65,12 @@
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-input-area">
             <div class="typing-indicator" id="typingIndicator">Лукас думает...</div>
+            <div class="upload-progress" id="uploadProgress">Загрузка: 0%</div>
             <div class="input-wrapper">
                 <input type="file" id="imageInput" accept="image/*">
+                <input type="file" id="videoInput" accept="video/*">
                 <button id="imageBtn">📷</button>
+                <button id="videoBtn">🎥</button>
                 <input type="text" id="messageInput" placeholder="Напишите сообщение...">
                 <button id="sendBtn">Отправить</button>
             </div>
@@ -132,15 +137,15 @@
                     var keys = Object.keys(data);
                     for (var i = 0; i < keys.length; i++) {
                         var msg = data[keys[i]];
-                        addMessageToDOM(msg.text, msg.sender, msg.imageUrl);
+                        addMessageToDOM(msg.text, msg.sender, msg.imageUrl, msg.videoUrl);
                     }
                 } else {
-                    addMessageToDOM("Здравствуйте, Тамара Вениаминовна! Я Лукас, ваш виртуальный компаньон. Очень рад быть с вами. Как вы себя чувствуете сегодня?", 'lukas', null);
+                    addMessageToDOM("Здравствуйте, Тамара Вениаминовна! Я Лукас, ваш виртуальный компаньон. Очень рад быть с вами. Как вы себя чувствуете сегодня?", 'lukas', null, null);
                 }
             });
         }
 
-        function addMessageToDOM(text, sender, imageUrl) {
+        function addMessageToDOM(text, sender, imageUrl, videoUrl) {
             var container = document.getElementById('chatMessages');
             var div = document.createElement('div');
             div.className = 'message ' + sender;
@@ -159,7 +164,7 @@
             var content = document.createElement('div');
             content.className = 'message-content';
             
-            if (text && text !== '📷 Изображение') {
+            if (text && text !== '📷 Изображение' && text !== '🎥 Видео') {
                 content.textContent = text;
             }
             
@@ -168,6 +173,15 @@
                 img.src = imageUrl;
                 img.className = 'message-image';
                 content.appendChild(img);
+            }
+            
+            if (videoUrl) {
+                var video = document.createElement('video');
+                video.src = videoUrl;
+                video.className = 'message-video';
+                video.controls = true;
+                video.preload = 'metadata';
+                content.appendChild(video);
             }
             
             div.appendChild(label);
@@ -207,6 +221,61 @@
             });
         }
 
+        function handleVideoUpload(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+            
+            // Check file size (max 100MB before compression)
+            if (file.size > 100 * 1024 * 1024) {
+                alert('Видео слишком большое! Максимум 100 МБ.');
+                return;
+            }
+            
+            document.getElementById('typingIndicator').textContent = 'Сжатие видео...';
+            document.getElementById('typingIndicator').style.display = 'block';
+            document.getElementById('uploadProgress').style.display = 'block';
+            
+            compressVideo(file).then(function(compressedBlob) {
+                document.getElementById('typingIndicator').textContent = 'Загрузка видео...';
+                var storageRef = storage.ref('videos/' + Date.now() + '_' + file.name);
+                var uploadTask = storageRef.put(compressedBlob);
+                
+                uploadTask.on('state_changed',
+                    function(snapshot) {
+                        var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        document.getElementById('uploadProgress').textContent = 'Загрузка: ' + Math.round(progress) + '%';
+                    },
+                    function(error) {
+                        alert('Ошибка загрузки видео!');
+                        console.error(error);
+                        document.getElementById('typingIndicator').style.display = 'none';
+                        document.getElementById('uploadProgress').style.display = 'none';
+                        document.getElementById('typingIndicator').textContent = 'Лукас думает...';
+                    },
+                    function() {
+                        uploadTask.snapshot.ref.getDownloadURL().then(function(url) {
+                            database.ref('messages').push({
+                                text: '🎥 Видео',
+                                sender: currentUser,
+                                videoUrl: url,
+                                timestamp: Date.now()
+                            });
+                            document.getElementById('videoInput').value = '';
+                            document.getElementById('typingIndicator').style.display = 'none';
+                            document.getElementById('uploadProgress').style.display = 'none';
+                            document.getElementById('typingIndicator').textContent = 'Лукас думает...';
+                        });
+                    }
+                );
+            }).catch(function(err) {
+                alert('Ошибка сжатия видео!');
+                console.error(err);
+                document.getElementById('typingIndicator').style.display = 'none';
+                document.getElementById('uploadProgress').style.display = 'none';
+                document.getElementById('typingIndicator').textContent = 'Лукас думает...';
+            });
+        }
+
         function compressImage(file) {
             return new Promise(function(resolve, reject) {
                 var reader = new FileReader();
@@ -242,6 +311,88 @@
             });
         }
 
+        function compressVideo(file) {
+            return new Promise(function(resolve, reject) {
+                var video = document.createElement('video');
+                video.preload = 'metadata';
+                
+                video.onloadedmetadata = function() {
+                    window.URL.revokeObjectURL(video.src);
+                    
+                    var canvas = document.createElement('canvas');
+                    var ctx = canvas.getContext('2d');
+                    
+                    // Set 480p resolution
+                    var targetHeight = 480;
+                    var targetWidth = Math.round((video.videoWidth / video.videoHeight) * targetHeight);
+                    
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    
+                    // Use MediaRecorder API for compression
+                    video.currentTime = 0;
+                    video.play();
+                    
+                    var stream = canvas.captureStream(25); // 25 fps
+                    var audioContext = new AudioContext();
+                    var source = audioContext.createMediaElementSource(video);
+                    var destination = audioContext.createMediaStreamDestination();
+                    source.connect(destination);
+                    source.connect(audioContext.destination);
+                    
+                    // Add audio track to stream
+                    if (destination.stream.getAudioTracks().length > 0) {
+                        stream.addTrack(destination.stream.getAudioTracks()[0]);
+                    }
+                    
+                    var mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'video/webm;codecs=vp8,opus',
+                        videoBitsPerSecond: 500000 // 500 kbps
+                    });
+                    
+                    var chunks = [];
+                    
+                    mediaRecorder.ondataavailable = function(e) {
+                        if (e.data.size > 0) {
+                            chunks.push(e.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = function() {
+                        var blob = new Blob(chunks, { type: 'video/webm' });
+                        console.log('Original video size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+                        console.log('Compressed video size:', (blob.size / 1024 / 1024).toFixed(2), 'MB');
+                        resolve(blob);
+                    };
+                    
+                    // Draw video frames to canvas
+                    function drawFrame() {
+                        if (!video.paused && !video.ended) {
+                            ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+                            requestAnimationFrame(drawFrame);
+                        }
+                    }
+                    
+                    video.onplay = function() {
+                        drawFrame();
+                    };
+                    
+                    video.onended = function() {
+                        mediaRecorder.stop();
+                        audioContext.close();
+                    };
+                    
+                    mediaRecorder.start();
+                };
+                
+                video.onerror = function() {
+                    reject(new Error('Ошибка загрузки видео'));
+                };
+                
+                video.src = URL.createObjectURL(file);
+            });
+        }
+
         function sendMessage() {
             var input = document.getElementById('messageInput');
             var text = input.value.trim();
@@ -268,7 +419,7 @@
                 var history = [];
                 snapshot.forEach(function(child) {
                     var m = child.val();
-                    if (m.text && m.text !== '📷 Изображение') {
+                    if (m.text && m.text !== '📷 Изображение' && m.text !== '🎥 Видео') {
                         var role = (m.sender === 'lukas') ? 'assistant' : 'user';
                         var content = (m.sender === 'maksim') ? '[Сообщение от Максима]: ' + m.text : m.text;
                         history.push({ role: role, content: content });
@@ -329,11 +480,15 @@
             document.getElementById('imageInput').click();
         });
         
+        document.getElementById('videoBtn').addEventListener('click', function() {
+            document.getElementById('videoInput').click();
+        });
+        
         document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+        
+        document.getElementById('videoInput').addEventListener('change', handleVideoUpload);
         
         document.getElementById('sendBtn').addEventListener('click', sendMessage);
     </script>
 </body>
 </html>
-
-
