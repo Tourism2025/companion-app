@@ -49,7 +49,7 @@
         <h1>💬 Компаньон</h1>
         <div class="login-form">
             <input type="text" id="loginInput" placeholder="Логин" autocomplete="off">
-            <input type="password" id="passwordInput" placeholder="Пароль" autocomplete="off" onkeypress="if(event.key==='Enter') login()">
+            <input type="password" id="passwordInput" placeholder="Пароль" autocomplete="off">
         </div>
         <button class="login-btn" onclick="login()">Войти</button>
         <div class="error-message" id="errorMessage">Неверный логин или пароль</div>
@@ -64,10 +64,10 @@
         <div class="chat-input-area">
             <div class="typing-indicator" id="typingIndicator">Лукас думает...</div>
             <div class="input-wrapper">
-                <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)">
-                <button id="imageBtn" onclick="document.getElementById('imageInput').click()">📷</button>
-                <input type="text" id="messageInput" placeholder="Напишите сообщение..." onkeypress="if(event.key==='Enter') sendMessage()">
-                <button id="sendBtn" onclick="sendMessage()">Отправить</button>
+                <input type="file" id="imageInput" accept="image/*">
+                <button id="imageBtn">📷</button>
+                <input type="text" id="messageInput" placeholder="Напишите сообщение...">
+                <button id="sendBtn">Отправить</button>
             </div>
         </div>
     </div>
@@ -315,6 +315,23 @@
                 document.getElementById('typingIndicator').style.display = 'none';
             });
         }
+
+        // Event listeners
+        document.getElementById('passwordInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') login();
+        });
+        
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        document.getElementById('imageBtn').addEventListener('click', function() {
+            document.getElementById('imageInput').click();
+        });
+        
+        document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+        
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
     </script>
 </body>
 </html>
