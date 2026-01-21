@@ -311,48 +311,54 @@
         }
 
         // ✅ CHANGED: Updated to use RouteLLM API
-        async function getLukasResponse() {
-            document.getElementById('typingIndicator').style.display = 'block';
-            const snapshot = await database.ref('messages').limitToLast(10).once('value');
-            const history = [];
-            snapshot.forEach(child => {
-                const m = child.val();
-                if (m.text && m.text !== '📷 Изображение') {
-                    const role = m.sender === 'lukas' ? 'assistant' : 'user';
-                    const content = m.sender === 'maksim' ? `[Сообщение от Максима]: ${m.text}` : m.text;
-                    history.push({ role, content });
-                }
-            });
-            try {
-                // ✅ CHANGED: Using RouteLLM endpoint instead of OpenAI
-                const response = await fetch('https://routellm.abacus.ai/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'Authorization': `Bearer ${ROUTELLM_API_KEY}` 
-                    },
-                    body: JSON.stringify({
-                        model: 'openai/gpt-4o-mini', // ✅ CHANGED: Added "openai/" prefix
-                        messages: [{ role: 'system', content: AI_PROMPT }, ...history],
-                        temperature: 0.7,
-                        max_tokens: 500
-                    })
-                });
-                const data = await response.json();
-                database.ref('messages').push({ 
-                    text: data.choices[0].message.content, 
-                    sender: 'lukas', 
-                    timestamp: Date.now() 
-                });
-            } catch (e) { 
-                console.error('Lukas Error:', e); 
-                // Optional: Show error to user
-                alert('Ошибка связи с Лукасом. Проверьте консоль (F12).');
-            }
-            finally { 
-                document.getElementById('typingIndicator').style.display = 'none'; 
-            }
+       async function getLukasResponse() {
+    document.getElementById('typingIndicator').style.display = 'block';
+    const snapshot = await database.ref('messages').limitToLast(10).once('value');
+    const history = [];
+    snapshot.forEach(child => {
+        const m = child.val();
+        if (m.text && m.text !== '📷 Изображение') {
+            const role = m.sender === 'lukas' ? 'assistant' : 'user';
+            const content = m.sender === 'maksim' ? `[Сообщение от Максима]: ${m.text}` : m.text;
+            history.push({ role, content });
         }
+    });
+    try {
+        const response = await fetch('https://routellm.abacus.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${ROUTELLM_API_KEY}` 
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',  // ✅ FIXED: Removed "openai/" prefix
+                messages: [{ role: 'system', content: AI_PROMPT }, ...history],
+                temperature: 0.7,
+                max_tokens: 500
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('RouteLLM Error Response:', errorText);
+            throw new Error(`API Error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        database.ref('messages').push({ 
+            text: data.choices[0].message.content, 
+            sender: 'lukas', 
+            timestamp: Date.now() 
+        });
+    } catch (e) { 
+        console.error('Lukas Error:', e); 
+        alert('Ошибка связи с Лукасом. Проверьте консоль (F12).');
+    }
+    finally { 
+        document.getElementById('typingIndicator').style.display = 'none'; 
+    }
+}
     </script>
 </body>
 </html>
+
